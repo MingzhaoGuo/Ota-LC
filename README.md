@@ -1,7 +1,7 @@
 # Ota-LC
 This is the code of the paper "Efficient Wireless Federated Learning via Low-Rank Gradient Factorization". [[paper]](https://arxiv.org/html/2401.07496v1)
 
-![](System.png){:height="60%" width="60%"}
+![](System.png)
 
 ## Requirements
 
@@ -12,7 +12,13 @@ pip install -r requirements.txt
 
 ## Datasets
 
-We use MNIST and CIFAR10 datasets for experimants, please download and unzip data under `data/` directory.
+We use MNIST and CIFAR10 datasets for experimants, please download and unzip data under `data/` directory. And the file structure looks like
+```
+|-data/
+|  |-cifar/cifar-10-batches-py/
+|  |-mnist/MNIST/raw/
+|-src/
+```
 
 ## Run the code
 
