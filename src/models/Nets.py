@@ -1,6 +1,6 @@
 from torch import nn
 import torch.nn.functional as F
-from models.resnet import ResNet18
+from models.resnet import ResNet18, ResNet34, ResNet50, ResNet101, ResNet152
 
 class MLP(nn.Module):
     def __init__(self, dim_in, dim_hidden, dim_out):
@@ -41,6 +41,7 @@ class CNNMnist(nn.Module):
         dummy_output = self.forward(dummy_sample)
 
         return dummy_output
+    
 
 class CNNCifar(nn.Module):
     def __init__(self, args):
@@ -61,28 +62,21 @@ class CNNCifar(nn.Module):
         x = self.fc3(x)
         return x
 
-class CNNCifarRes(nn.Module):
+
+
+class CNNCifarResNet(nn.Module):
     def __init__(self, args):
-        super(CNNCifarRes, self).__init__()
-        self.conv1 = nn.Conv2d(3, 16, 5, padding=2)
-        self.conv1_bn = nn.BatchNorm2d(16)
-        self.conv2 = nn.Conv2d(16, 16, 5, padding=2)
-        self.fc1 = nn.Linear(1024, 512)
-        self.fc2 = nn.Linear(512, args.num_classes)
-
-    def forward(self, x):
-        x = F.max_pool2d(self.conv1_bn(F.relu(self.conv1(x))), 2)
-        x = F.max_pool2d(x + F.relu(self.conv2(x)), 2)
-        x = x.view(-1, x.shape[1] * x.shape[2] * x.shape[3])
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-
-class CNNCifarRes18(nn.Module):
-    def __init__(self, args):
-        super(CNNCifarRes18, self).__init__()
-        self.network = ResNet18()
+        super(CNNCifarResNet, self).__init__()
+        if args.model == 'resnet18':
+            self.network = ResNet18(args.num_classes)
+        elif args.model == 'resnet34':
+            self.network = ResNet34(args.num_classes)
+        elif args.model == 'resnet50':
+            self.network = ResNet50(args.num_classes)
+        elif args.model == 'resnet101':
+            self.network = ResNet101(args.num_classes)
+        elif args.model == 'resnet152':
+            self.network = ResNet152(args.num_classes)
 
     def forward(self, x):
         x = self.network(x)

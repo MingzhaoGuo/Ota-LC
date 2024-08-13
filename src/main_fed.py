@@ -8,10 +8,10 @@ import math
 import os
 
 
-from utils.sampling import mnist_iid, mnist_noniid, cifar_iid
+from utils.sampling import iid, mnist_noniid, non_iid
 from utils.options import args_parser
 from models.Update import LocalUpdate
-from models.Nets import MLP, CNNMnist, CNNCifar,  CNNCifarRes18
+from models.Nets import MLP, CNNMnist, CNNCifar,  CNNCifarResNet
 from utils.averaging import FedAvg
 from utils.compressor import initial_S, partial_DFT, turbo_cs, all_reduce, all_sum
 from utils.mimo import estimate_H, beamforming_init, transmit, beamforming
@@ -72,15 +72,17 @@ if __name__ == '__main__':
     set_rand_seed(args.seed)
 
     if args.dataset == 'mnist':
+        args.num_classes = 10
         trans_mnist = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
         dataset_train = datasets.MNIST('../data/mnist/', train=True, download=True, transform=trans_mnist)
         dataset_test = datasets.MNIST('../data/mnist/', train=False, download=True, transform=trans_mnist)
         # sample users
         if args.iid:
-            dict_users = mnist_iid(dataset_train, args.num_users)
+            dict_users = iid(dataset_train, args.num_users)
         else:
             dict_users = mnist_noniid(dataset_train, args.num_users)
     elif args.dataset == 'cifar10':
+        args.num_classes = 10
         trans_cifar_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -92,43 +94,44 @@ if __name__ == '__main__':
         dataset_train = datasets.CIFAR10('../data/cifar', train=True, download=True, transform=trans_cifar_train)
         dataset_test = datasets.CIFAR10('../data/cifar', train=False, download=True, transform=trans_cifar_test)
         if args.iid:
-            dict_users = cifar_iid(dataset_train, args.num_users)
+            dict_users = iid(dataset_train, args.num_users)
         else:
-            # TODO: prepare the non-iid data for CIFAR10
-            pass
+            dict_users = non_iid(dataset_train, args.num_users, args.num_classes)
     elif args.dataset == 'cifar100':
-        # TODO: prepare the cifar100 dataset
+        args.num_classes = 100
+        transform = transforms.Compose([transforms.ToTensor()])
+        dataset_test = datasets.CIFAR100('../data/cifar100', train=False, download=True, transform= transform)
+        dataset_train = datasets.CIFAR100('../data/cifar100', train=True, download=True, transform=transform)
         if args.iid:
-            # TODO: prepare the iid data for CIFAR100
-            pass
+            dict_users = iid(dataset_train, args.num_users)
         else:
-            # TODO: prepare the non-iid data for CIFAR100
-            pass
-    elif args.dataset == 'EMNIST':
-        # TODO: prepare the EMNIST dataset
+            dict_users = non_iid(dataset_train, args.num_users, args.num_classes)
+    elif args.dataset == 'emnist':
+        args.num_classes = 26
+        transform = transforms.Compose([transforms.ToTensor()])
+        dataset_train = datasets.EMNIST('../data/emnist',split='letters',train=True, download=True, transform=transform)
+        dataset_test = datasets.EMNIST('../data/emnist',split='letters',train=False, download=True, transform=transform)
         if args.iid:
-            # TODO: prepare the iid data for EMNIST
-            pass
+            dict_users = iid(dataset_train, args.num_users)
         else:
-            # TODO: prepare the non-iid for EMNIST
-            pass
+            dict_users = mnist_noniid(dataset_train, args.num_users)
     else:
         exit('Error: unrecognized dataset')
     img_size = dataset_train[0][0].shape
 
     # build model
+
+    
     if args.model == 'cnn' and args.dataset == 'cifar10':
         net_glob = CNNCifar(args=args).to(args.device)
     elif args.model == 'cnn' and args.dataset == 'mnist':
         net_glob = CNNMnist(args=args).to(args.device)
-    elif args.model == 'resnet18' and args.dataset == 'cifar10':
-        net_glob = CNNCifarRes18(args=args).to(args.device)
-    elif args.model == 'vgg16' and args.dataset == "cifar100":
-        # TODO: prepare the vgg net for cifar100
-        pass
+    elif (args.model == 'resnet18' or 'resnet34' or 'resnet50' or 'resnet101' or 'resnet152')  and args.dataset == 'cifar10':
+        net_glob = CNNCifarResNet(args=args).to(args.device)
+    elif (args.model == 'resnet18' or 'resnet34' or 'resnet50' or 'resnet101' or 'resnet152') and args.dataset == "cifar100":
+        net_glob = CNNCifarResNet(args=args).to(args.device)
     elif args.model == "cnn" and args.dataset == "EMNIST":
-        # TODO: prepare the CNN net for EMNIST dataset
-        pass
+        net_glob = CNNMnist(args=args).to(args.device)
     elif args.model == 'mlp':
         len_in = 1
         for x in img_size:
