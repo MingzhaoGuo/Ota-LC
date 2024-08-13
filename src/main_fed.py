@@ -80,7 +80,7 @@ if __name__ == '__main__':
             dict_users = mnist_iid(dataset_train, args.num_users)
         else:
             dict_users = mnist_noniid(dataset_train, args.num_users)
-    elif args.dataset == 'cifar':
+    elif args.dataset == 'cifar10':
         trans_cifar_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -94,18 +94,41 @@ if __name__ == '__main__':
         if args.iid:
             dict_users = cifar_iid(dataset_train, args.num_users)
         else:
-            exit('Error: only consider IID setting in CIFAR10')
+            # TODO: prepare the non-iid data for CIFAR10
+            pass
+    elif args.dataset == 'cifar100':
+        # TODO: prepare the cifar100 dataset
+        if args.iid:
+            # TODO: prepare the iid data for CIFAR100
+            pass
+        else:
+            # TODO: prepare the non-iid data for CIFAR100
+            pass
+    elif args.dataset == 'EMNIST':
+        # TODO: prepare the EMNIST dataset
+        if args.iid:
+            # TODO: prepare the iid data for EMNIST
+            pass
+        else:
+            # TODO: prepare the non-iid for EMNIST
+            pass
     else:
         exit('Error: unrecognized dataset')
     img_size = dataset_train[0][0].shape
 
     # build model
-    if args.model == 'cnn' and args.dataset == 'cifar':
+    if args.model == 'cnn' and args.dataset == 'cifar10':
         net_glob = CNNCifar(args=args).to(args.device)
     elif args.model == 'cnn' and args.dataset == 'mnist':
         net_glob = CNNMnist(args=args).to(args.device)
-    elif args.model == 'resnet18' and args.dataset == 'cifar':
+    elif args.model == 'resnet18' and args.dataset == 'cifar10':
         net_glob = CNNCifarRes18(args=args).to(args.device)
+    elif args.model == 'vgg16' and args.dataset == "cifar100":
+        # TODO: prepare the vgg net for cifar100
+        pass
+    elif args.model == "cnn" and args.dataset == "EMNIST":
+        # TODO: prepare the CNN net for EMNIST dataset
+        pass
     elif args.model == 'mlp':
         len_in = 1
         for x in img_size:
@@ -296,8 +319,6 @@ if __name__ == '__main__':
                     p_k, p_shape = transmit(p_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
                     q_k, q_shape = transmit(q_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
 
-                    
-                    
                     ps.append(p_k)
                     qs.append(q_k)
                 p_n = all_reduce(ps)
@@ -321,6 +342,23 @@ if __name__ == '__main__':
                 for (idx,cur_idx) in zip(idxs_users,range(m)):
                    error_feedback[idx] = error_feedback_update(q, p ,grad_locals[cur_idx], args.num_users)
 
+            elif args.mode == "ota_topk":
+                # TODO add the code for topk compression
+                pass
+            elif args.mode == "ota_randk":
+                # TODO add the code for random k compression
+                pass
+            elif args.mode == "ota_powersgd":
+                # TODO add the code for power_sgd compression
+                pass
+            elif args.mode == "ota_signsgd":
+                # TODO add the code for  signsgd compression
+                pass
+            elif args.mode == "ota_qsgd":
+                # TODO add the code for the qsgd compression
+                pass
+            elif args.mode == "ota_lc_no_FB":
+                pass
             
 
         for k in w_glob.keys():
