@@ -37,7 +37,7 @@ def args_parser():
     parser.add_argument('--dimension', type = int, default= 8)
     parser.add_argument('--Ns', type=int, default=8)
     parser.add_argument('--Nt', type = int, default= 8)
-    parser.add_argument('--Nr', type = int, default= 80)
+    parser.add_argument('--Nr', type = int, default= 8)
     parser.add_argument('--SNRdB', type=int, default= 20)
     
 

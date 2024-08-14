@@ -63,11 +63,11 @@ if __name__ == '__main__':
     # parse args
     args = args_parser()
     args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() and args.gpu != -1 else 'cpu')
-    csv_path = './outputs/csv/{name}/{model}_{data}/{C}'.format(name=args.mode, C = args.C, model = args.model, data = args.dataset)
+    csv_path = './outputs/csv/{name}/{model}_{data}/{iid}/{C}'.format(name=args.mode,iid=args.iid, C = args.C, model = args.model, data = args.dataset)
     if not os.path.exists(csv_path):
         os.makedirs(csv_path)
     df = pd.DataFrame(columns=['iter','train_loss', 'train_acc', 'test_loss', 'test_acc', 'time'])
-    df.to_csv('./outputs/csv/{name}/{model}_{data}/{C}/{Nr}_{Nt}_{SNR}_{seed}.csv'.format(name=args.mode, Nr = args.Nr, Nt = args.Nt, SNR = args.SNRdB, C = args.C, model = args.model, data = args.dataset, seed = args.seed),index=False)
+    df.to_csv('./outputs/csv/{name}/{model}_{data}/{iid}/{C}/{Nr}_{Nt}_{SNR}_{seed}.csv'.format(name=args.mode,iid = args.iid, Nr = args.Nr, Nt = args.Nt, SNR = args.SNRdB, C = args.C, model = args.model, data = args.dataset, seed = args.seed),index=False)
     
     set_rand_seed(args.seed)
 
@@ -346,7 +346,7 @@ if __name__ == '__main__':
                    error_feedback[idx] = error_feedback_update(q, p ,grad_locals[cur_idx], args.num_users)
 
             elif args.mode == "ota_topk":
-                # TODO add the code for topk compression
+                # TODO add the code for topk
                 pass
             elif args.mode == "ota_randk":
                 # TODO add the code for random k compression
@@ -391,7 +391,7 @@ if __name__ == '__main__':
             l_test = "%f"%loss_test
             list = [i,l_train,a_train,l_test,a_test,t_]
             data = pd.DataFrame([list])
-            data.to_csv('./outputs/csv/{name}/{model}_{data}/{C}/{Nr}_{Nt}_{SNR}_{seed}.csv'.format(name=args.mode, Nr = args.Nr, Nt = args.Nt, SNR = args.SNRdB, C = args.C, model = args.model, data = args.dataset, seed = args.seed),mode= 'a',header=False,index=False)
+            data.to_csv('./outputs/csv/{name}/{model}_{data}/{iid}/{C}/{Nr}_{Nt}_{SNR}_{seed}.csv'.format(name=args.mode,iid = args.iid, Nr = args.Nr, Nt = args.Nt, SNR = args.SNRdB, C = args.C, model = args.model, data = args.dataset, seed = args.seed),mode= 'a',header=False,index=False)
             logger.info("average train acc: {:.2f}%".format(acc_train))
             logger.info("average train loss: {:.4f}".format(loss_train))
 

@@ -75,7 +75,7 @@ def mnist_noniid(dataset, num_users):
 #     return data_split, label_split
 
 
-def non_iid(dataset, num_users, classes_size, alpha = 100):
+def non_iid(dataset, num_users, classes_size, alpha = 1):
 
     train_labels = np.array(dataset.targets)
     label_distribution = np.random.dirichlet([alpha]*num_users, classes_size)
