@@ -13,7 +13,7 @@ from utils.options import args_parser
 from models.Update import LocalUpdate
 from models.Nets import MLP, CNNMnist, CNNCifar,  CNNCifarResNet
 from utils.averaging import FedAvg
-from utils.compressor import initial_S, partial_DFT, turbo_cs, all_reduce, all_sum
+from utils.compressor import initial_S, partial_DFT, turbo_cs, all_reduce, all_sum, topk
 from utils.mimo import estimate_H, beamforming_init, transmit, beamforming
 from utils.blue import blue_transmit, blue_estimate
 from utils.rlc import init_A, RLC, RLCR
@@ -346,8 +346,36 @@ if __name__ == '__main__':
                    error_feedback[idx] = error_feedback_update(q, p ,grad_locals[cur_idx], args.num_users)
 
             elif args.mode == "ota_topk":
-                # TODO add the code for topk
-                pass
+                H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
+                
+                shape, s, S = initial_S(grad_glob, args.C, args.device, args.Ns)
+                A, B  = beamforming_init(H, args.device, 1,grad_glob, args.dimension)
+                compressed_grad = []
+                sigma = []
+                sigma_S = []
+                if iter == warm_up+1:
+                    error_feedback = []
+                    for usr in range((args.num_users)):
+                        res_k = []
+                        for layer_shape in shape:
+                            res_k_l = torch.zeros((1, layer_shape)).to(args.device)
+                            res_k.append(res_k_l)
+                        error_feedback.append(res_k)
+                timer = 0
+                for (idx,cur_idx) in zip(idxs_users,range(m)):
+                    local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx])
+                    grad,  loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
+                    grad_locals.append(copy.deepcopy(grad))
+                    g_k, res_k, timer = topk(grad, args.C ,error_feedback[idx], timer)
+                    s_k,shape_s = transmit(g_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
+                    compressed_grad.append(g_k)
+                    error_feedback[idx] = res_k
+                    loss_locals.append(copy.deepcopy(loss))
+                Y = all_reduce(compressed_grad)
+                Y = beamforming(Y, A, shape_s)
+                grad_truth = FedAvg(grad_locals)
+                grad_glob = Y
+            
             elif args.mode == "ota_randk":
                 # TODO add the code for random k compression
                 pass

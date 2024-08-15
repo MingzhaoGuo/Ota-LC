@@ -6,21 +6,24 @@ import time
 EXP_MAX = 30
 EXP_MIN = -30
 
-def topk(grad, K, R):
+def topk(grad, C, R,timer):
     topk_grads = copy.deepcopy(grad)
     res = []
     for k,r in zip(topk_grads.keys(),R):
+        start = time.process_time()
         tensor = topk_grads[k] + r
         tensor_shape = tensor.shape
         array = tensor.flatten()
-        total = array.shape[0] - K
+        total = array.shape[0] - int(array.shape[0] * C)
         array_abs = torch.abs(array)
         array_sort_idx = torch.argsort(array_abs)[:total]
         array[array_sort_idx] = 0
         topk_tensor = array.reshape(tensor_shape)
         res.append(tensor - topk_tensor)
         topk_grads[k] = topk_tensor
-    return topk_grads, res
+        end = time.process_time()
+        timer += end - start
+    return topk_grads, res, timer
 
 
 def initial_S(grad, C, device, Ns):
