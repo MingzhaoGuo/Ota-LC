@@ -6,12 +6,17 @@ import time
 EXP_MAX = 30
 EXP_MIN = -30
 
-def topk(grad, C, R,timer):
+def topk(grad, C, R, timer):
     topk_grads = copy.deepcopy(grad)
+    compressed_grad = []
     res = []
-    for k,r in zip(topk_grads.keys(),R):
+    idx = 0
+    for k in topk_grads.keys():
+        if topk_grads[k].ndimension() <= 1:
+            continue
         start = time.process_time()
-        tensor = topk_grads[k] + r
+        tensor = topk_grads[k] + R[idx]
+        idx += 1
         tensor_shape = tensor.shape
         array = tensor.flatten()
         total = array.shape[0] - int(array.shape[0] * C)
@@ -20,11 +25,28 @@ def topk(grad, C, R,timer):
         array[array_sort_idx] = 0
         topk_tensor = array.reshape(tensor_shape)
         res.append(tensor - topk_tensor)
-        topk_grads[k] = topk_tensor
+        matrix = topk_tensor.view(tensor.shape[0],-1) 
+        compressed_grad.append(matrix) 
         end = time.process_time()
         timer += end - start
-    return topk_grads, res, timer
+    return compressed_grad, res, timer
 
+def topk_sgd(g_new, grads):
+    i = 0
+    grad = copy.deepcopy(grads)
+    for k in grads.keys():
+        tensor = grads[k]
+        if tensor.ndimension()<=1:
+            continue
+        
+        y = g_new[i].view(tensor.shape)
+        matrix = (tensor).view(tensor.shape[0],-1)
+        grad[k] = copy.deepcopy(y)
+        
+        i += 1
+        
+        
+    return grad
 
 def initial_S(grad, C, device, Ns):
     

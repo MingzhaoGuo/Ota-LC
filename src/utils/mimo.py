@@ -62,7 +62,6 @@ def transmit(signal, B, H, idx, dimension, SNR, device):
     sigma = []
     sigma_n = 10**(int(-SNR/10))
     for (s,i) in zip(signal, range(len(signal))):
-        # print("layer:",i)
         shape.append(s.shape)
         a, b = s.shape
         d = math.ceil(a*b/dimension)

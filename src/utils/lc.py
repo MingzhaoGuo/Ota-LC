@@ -70,7 +70,7 @@ def sca_global(p,q,p_bar, q_bar, eta):
     return p_new, q_new
 
 
-def sca_sgd(p, q, grads, eta):
+def sca_sgd(p, q, grads):
     i = 0
     grad = copy.deepcopy(grads)
     for k in grads.keys():
@@ -92,7 +92,7 @@ def sca_sgd(p, q, grads, eta):
         i += 1
         
         
-    return grad, eta
+    return grad
 
 
 
@@ -155,7 +155,7 @@ def float2complex(signal, device):
     i = 0
     for s in signal:
         size.append(s.shape)
-        n, l = s.shape
+        n,l = s.shape
         if (n%2 == 1):
             n += 1
             s.resize_(n,l)
