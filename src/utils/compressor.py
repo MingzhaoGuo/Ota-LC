@@ -81,6 +81,7 @@ def powersgd_update_Q(grad, res, p, timer):
         matrix = (tensor+res[idx]).view(tensor.shape[0],-1)
         q = torch.t(matrix) @ p[idx]
         end = time.process_time()
+        q_k.append(q)
         idx += 1
         timer += end - start
     return q_k, timer
