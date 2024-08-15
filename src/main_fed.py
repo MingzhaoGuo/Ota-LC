@@ -13,11 +13,13 @@ from utils.options import args_parser
 from models.Update import LocalUpdate
 from models.Nets import MLP, CNNMnist, CNNCifar,  CNNCifarResNet
 from utils.averaging import FedAvg
-from utils.compressor import initial_S, partial_DFT, turbo_cs, all_reduce, all_sum, sparse_k, sparse_sgd
+from utils.compressor import initial_S, partial_DFT, turbo_cs, all_reduce, \
+    all_sum, sparse_k, sparse_sgd, powersgd_update_P, powersgd_update_Q, orthogonalize
 from utils.mimo import estimate_H, beamforming_init, transmit, beamforming
 from utils.blue import blue_transmit, blue_estimate
 from utils.rlc import init_A, RLC, RLCR
-from utils.lc import sca_sgd, sca_sgd_update_P_Q, error_feedback_update, sca_global, inverse, init_q_power, float2complex, complex2float
+from utils.lc import sca_sgd, sca_sgd_update_P_Q, error_feedback_update, \
+    sca_global, inverse, init_q_power, float2complex, complex2float
 from utils.utils import set_rand_seed
 from models.test import test_img
 
@@ -170,7 +172,7 @@ if __name__ == '__main__':
                   
             grad_glob = FedAvg(grad_locals)
         else:
-            if (args.mode == "ota_lc") and iter==warm_up+1:
+            if (args.mode == "ota_lc" or args.mode == "ota_powersgd") and iter==warm_up+1:
                 p, q, eta = init_q_power(grad_glob, args.C, args.device)
             
             if args.mode == "ota_cs":
@@ -340,7 +342,7 @@ if __name__ == '__main__':
                 grad_truth = FedAvg(grad_locals)
                 
 
-                grad_glob, eta = sca_sgd(p, q, grad_truth)
+                grad_glob= sca_sgd(p, q, grad_truth)
 
                 for (idx,cur_idx) in zip(idxs_users,range(m)):
                    error_feedback[idx] = error_feedback_update(q, p ,grad_locals[cur_idx], args.num_users)
@@ -412,9 +414,61 @@ if __name__ == '__main__':
                 g_new = complex2float(g_recieve, args.device, g_size)
                 grad_truth = FedAvg(grad_locals)
                 grad_glob = sparse_sgd(g_new, grad_truth)
+            
             elif args.mode == "ota_powersgd":
-                # TODO add the code for power_sgd compression
-                pass
+                H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
+                A, B  = beamforming_init(H, args.device, 5, grad_glob, args.Nt)
+                ps = []
+                qs = []
+                
+                if iter == warm_up+1:
+                    error_feedback = []
+                    for usr in range((args.num_users)):
+                        res_k = []
+                        for temp_l in grad_glob.keys():
+                            if grad_glob[temp_l].ndimension() <= 1:
+                                continue
+                            res_k_l = torch.zeros_like(grad_glob[temp_l]).to(args.device)
+                            res_k.append(res_k_l)
+                        error_feedback.append(res_k)
+                sigma_p = []
+                sigma_q = []
+
+                P_truth = []
+                Q_truth = []
+                for (idx,cur_idx) in zip(idxs_users,range(m)):
+                    local = LocalUpdate(args, dataset_train, dict_users[idx])
+                    grad,  loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
+                    loss_locals.append(copy.deepcopy(loss))
+                    grad_locals.append(copy.deepcopy(grad))
+                    p_k, timer = powersgd_update_P(grad, error_feedback[idx], q, timer)
+                    P_truth.append(copy.deepcopy(p_k))
+                    p_k, p_size = float2complex(p_k, args.device)
+                    p_k, p_shape = transmit(p_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
+                    ps.append(p_k)
+                p_n = all_reduce(ps)
+                P_t = all_reduce(P_truth)
+                p_n2 = beamforming(p_n, A, p_shape)
+                p_new = complex2float(p_n2, args.device, p_size)
+                p = orthogonalize(p_new)
+                for (idx,cur_idx) in zip(idxs_users,range(m)):
+                    q_k, timer = powersgd_update_Q(grad_locals[cur_idx], error_feedback[idx], p, timer)
+                    Q_truth.append(copy.deepcopy(q_k))
+                    q_k, q_size = float2complex(q_k, args.device)
+                    q_k, q_shape = transmit(q_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
+                    qs.append(q_k)
+                q_n = all_reduce(qs)
+                Q_t = all_reduce(Q_truth)
+                q_n2 = beamforming(q_n, A, q_shape)
+                q = complex2float(q_n2, args.device, q_size)
+
+
+                grad_truth = FedAvg(grad_locals)
+                grad_glob= sca_sgd(p, q, grad_truth)
+
+                for (idx,cur_idx) in zip(idxs_users,range(m)):
+                   error_feedback[idx] = error_feedback_update(q, p ,grad_locals[cur_idx], args.num_users)
+
             elif args.mode == "ota_signsgd":
                 # TODO add the code for  signsgd compression
                 pass

@@ -51,6 +51,48 @@ def sparse_sgd(g_new, grads):
         
     return grad
 
+def powersgd_update_P(grad, res, q, timer):
+    grads = copy.deepcopy(grad)
+    idx = 0
+    p_k = []
+    for k in grads.keys():
+        start = time.process_time()
+        tensor = grads[k]
+        if tensor.ndimension()<=1:
+            continue
+        matrix = (tensor+res[idx]).view(tensor.shape[0],-1)
+        p = matrix @ q[idx]
+        end = time.process_time()
+        idx += 1
+        p_k.append(p)
+        timer += end - start
+    return p_k, timer
+
+def powersgd_update_Q(grad, res, p, timer):
+    grads = copy.deepcopy(grad)
+    idx = 0
+    q_k = []
+    for k in grads.keys():
+        
+        tensor = grads[k]
+        if tensor.ndimension()<=1:
+            continue
+        start = time.process_time()
+        matrix = (tensor+res[idx]).view(tensor.shape[0],-1)
+        q = torch.t(matrix) @ p[idx]
+        end = time.process_time()
+        idx += 1
+        timer += end - start
+    return q_k, timer
+
+def orthogonalize(matrix):
+    mat_orth = []
+    for m in matrix:
+        mat_orth.append(torch.linalg.qr(m).Q)
+    return mat_orth
+
+
+
 def initial_S(grad, C, device, Ns):
     
     '''
