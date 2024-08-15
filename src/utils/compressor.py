@@ -6,7 +6,7 @@ import time
 EXP_MAX = 30
 EXP_MIN = -30
 
-def topk(grad, C, R, timer):
+def sparse_k(grad, C, R, mode, timer):
     topk_grads = copy.deepcopy(grad)
     compressed_grad = []
     res = []
@@ -20,9 +20,12 @@ def topk(grad, C, R, timer):
         tensor_shape = tensor.shape
         array = tensor.flatten()
         total = array.shape[0] - int(array.shape[0] * C)
-        array_abs = torch.abs(array)
-        array_sort_idx = torch.argsort(array_abs)[:total]
-        array[array_sort_idx] = 0
+        if mode == "topk":
+            array_abs = torch.abs(array)
+            array_zero_idx = torch.argsort(array_abs)[:total]
+        elif mode == "randk":
+            array_zero_idx = torch.randperm(array.shape[0])[:total]
+        array[array_zero_idx] = 0
         topk_tensor = array.reshape(tensor_shape)
         res.append(tensor - topk_tensor)
         matrix = topk_tensor.view(tensor.shape[0],-1) 
@@ -31,7 +34,7 @@ def topk(grad, C, R, timer):
         timer += end - start
     return compressed_grad, res, timer
 
-def topk_sgd(g_new, grads):
+def sparse_sgd(g_new, grads):
     i = 0
     grad = copy.deepcopy(grads)
     for k in grads.keys():

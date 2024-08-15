@@ -13,7 +13,7 @@ from utils.options import args_parser
 from models.Update import LocalUpdate
 from models.Nets import MLP, CNNMnist, CNNCifar,  CNNCifarResNet
 from utils.averaging import FedAvg
-from utils.compressor import initial_S, partial_DFT, turbo_cs, all_reduce, all_sum, topk, topk_sgd
+from utils.compressor import initial_S, partial_DFT, turbo_cs, all_reduce, all_sum, sparse_k, sparse_sgd
 from utils.mimo import estimate_H, beamforming_init, transmit, beamforming
 from utils.blue import blue_transmit, blue_estimate
 from utils.rlc import init_A, RLC, RLCR
@@ -367,7 +367,7 @@ if __name__ == '__main__':
                     local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx])
                     grad,  loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
                     grad_locals.append(copy.deepcopy(grad))
-                    g_k, res_k, timer = topk(grad, args.C ,error_feedback[idx], timer)
+                    g_k, res_k, timer = sparse_k(grad, args.C ,error_feedback[idx], "topk", timer)
                     g_k, g_size = float2complex(g_k, args.device)
                     s_k,shape_s = transmit(g_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
                     compressed_grad.append(s_k)
@@ -377,11 +377,41 @@ if __name__ == '__main__':
                 g_recieve = beamforming(Y, A, shape_s)
                 g_new = complex2float(g_recieve, args.device, g_size)
                 grad_truth = FedAvg(grad_locals)
-                grad_glob = topk_sgd(g_new, grad_truth)
+                grad_glob = sparse_sgd(g_new, grad_truth)
             
             elif args.mode == "ota_randk":
-                # TODO add the code for random k compression
-                pass
+                H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
+
+                A, B  = beamforming_init(H, args.device, 1,grad_glob, args.dimension)
+                compressed_grad = []
+                sigma = []
+                sigma_S = []
+                if iter == warm_up+1:
+                    error_feedback = []
+                    for usr in range((args.num_users)):
+                        res_k = []
+                        for temp_l in grad_glob.keys():
+                            if grad_glob[temp_l].ndimension() <= 1:
+                                continue
+                            res_k_l = torch.zeros_like(grad_glob[temp_l]).to(args.device)
+                            res_k.append(res_k_l)
+                        error_feedback.append(res_k)
+                timer = 0
+                for (idx,cur_idx) in zip(idxs_users,range(m)):
+                    local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx])
+                    grad,  loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
+                    grad_locals.append(copy.deepcopy(grad))
+                    g_k, res_k, timer = sparse_k(grad, args.C ,error_feedback[idx], "randk", timer)
+                    g_k, g_size = float2complex(g_k, args.device)
+                    s_k,shape_s = transmit(g_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
+                    compressed_grad.append(s_k)
+                    error_feedback[idx] = res_k
+                    loss_locals.append(copy.deepcopy(loss))
+                Y = all_reduce(compressed_grad)
+                g_recieve = beamforming(Y, A, shape_s)
+                g_new = complex2float(g_recieve, args.device, g_size)
+                grad_truth = FedAvg(grad_locals)
+                grad_glob = sparse_sgd(g_new, grad_truth)
             elif args.mode == "ota_powersgd":
                 # TODO add the code for power_sgd compression
                 pass
