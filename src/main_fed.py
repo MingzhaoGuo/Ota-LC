@@ -347,7 +347,7 @@ if __name__ == '__main__':
                 for (idx,cur_idx) in zip(idxs_users,range(m)):
                    error_feedback[idx] = error_feedback_update(q, p ,grad_locals[cur_idx], args.num_users)
 
-            elif args.mode == "ota_topk":
+            elif args.mode == "topk":
                 H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
 
                 A, B  = beamforming_init(H, args.device, 1,grad_glob, args.dimension)
@@ -372,16 +372,16 @@ if __name__ == '__main__':
                     g_k, res_k, timer = sparse_k(grad, args.C ,error_feedback[idx], "topk", timer)
                     g_k, g_size = float2complex(g_k, args.device)
                     s_k,shape_s = transmit(g_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
-                    compressed_grad.append(s_k)
+                    s_recieve = beamforming(s_k, A, shape_s)
+                    g_new = complex2float(s_recieve, args.device, g_size)
+                    compressed_grad.append(g_new)
                     error_feedback[idx] = res_k
                     loss_locals.append(copy.deepcopy(loss))
                 Y = all_reduce(compressed_grad)
-                g_recieve = beamforming(Y, A, shape_s)
-                g_new = complex2float(g_recieve, args.device, g_size)
                 grad_truth = FedAvg(grad_locals)
-                grad_glob = sparse_sgd(g_new, grad_truth)
+                grad_glob = sparse_sgd(Y, grad_truth)
             
-            elif args.mode == "ota_randk":
+            elif args.mode == "randk":
                 H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
 
                 A, B  = beamforming_init(H, args.device, 1,grad_glob, args.dimension)
@@ -406,14 +406,14 @@ if __name__ == '__main__':
                     g_k, res_k, timer = sparse_k(grad, args.C ,error_feedback[idx], "randk", timer)
                     g_k, g_size = float2complex(g_k, args.device)
                     s_k,shape_s = transmit(g_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
-                    compressed_grad.append(s_k)
+                    s_recieve = beamforming(s_k, A, shape_s)
+                    g_new = complex2float(s_recieve, args.device, g_size)
+                    compressed_grad.append(g_new)
                     error_feedback[idx] = res_k
                     loss_locals.append(copy.deepcopy(loss))
                 Y = all_reduce(compressed_grad)
-                g_recieve = beamforming(Y, A, shape_s)
-                g_new = complex2float(g_recieve, args.device, g_size)
                 grad_truth = FedAvg(grad_locals)
-                grad_glob = sparse_sgd(g_new, grad_truth)
+                grad_glob = sparse_sgd(Y, grad_truth)
             
             elif args.mode == "ota_powersgd":
                 H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
