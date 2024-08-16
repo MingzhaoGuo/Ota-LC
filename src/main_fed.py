@@ -172,7 +172,7 @@ if __name__ == '__main__':
                   
             grad_glob = FedAvg(grad_locals)
         else:
-            if (args.mode == "ota_lc" or args.mode == "ota_powersgd") and iter==warm_up+1:
+            if (args.mode == "ota_lc" or args.mode == "ota_powersgd" or args.mode == "ota_lc_NEF") and iter==warm_up+1:
                 p, q, eta = init_q_power(grad_glob, args.C, args.device)
             
             if args.mode == "ota_cs":
@@ -475,8 +475,63 @@ if __name__ == '__main__':
             elif args.mode == "ota_qsgd":
                 # TODO add the code for the qsgd compression
                 pass
-            elif args.mode == "ota_lc_no_FB":
-                pass
+            elif args.mode == "ota_lc_NEF":
+                H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
+                A, B  = beamforming_init(H, args.device, 5, grad_glob, args.Nt)
+                ps = []
+                qs = []
+                
+                if iter == warm_up+1:
+                    error_feedback = []
+                    for usr in range((args.num_users)):
+                        res_k = []
+                        for temp_l in grad_glob.keys():
+                            if grad_glob[temp_l].ndimension() <= 1:
+                                continue
+                            res_k_l = torch.zeros_like(grad_glob[temp_l]).to(args.device)
+                            res_k.append(res_k_l)
+                        error_feedback.append(res_k)
+                sigma_p = []
+                sigma_q = []
+
+                inv_q = inverse(q, args.device)
+                inv_p = inverse(p, args.device)
+                P_truth = []
+                Q_truth = []
+                timer = 0
+                for (idx,cur_idx) in zip(idxs_users,range(m)):
+                    local = LocalUpdate(args, dataset_train, dict_users[idx])
+                    grad,  loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
+                    loss_locals.append(copy.deepcopy(loss))
+                      
+                    grad_locals.append(copy.deepcopy(grad))
+                    
+                    p_k, q_k, timer = sca_sgd_update_P_Q(grad, error_feedback[idx], inv_q,inv_p, timer)
+                    P_truth.append(copy.deepcopy(p_k))
+                    
+                    Q_truth.append(copy.deepcopy(q_k))
+
+                    p_k, p_size = float2complex(p_k, args.device)
+                    q_k, q_size = float2complex(q_k, args.device)
+
+                    p_k, p_shape = transmit(p_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
+                    q_k, q_shape = transmit(q_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
+
+                    ps.append(p_k)
+                    qs.append(q_k)
+                p_n = all_reduce(ps)
+                q_n = all_reduce(qs)
+                P_t = all_reduce(P_truth)
+                Q_t = all_reduce(Q_truth)
+                p_n2 = beamforming(p_n, A, p_shape)
+                p_new = complex2float(p_n2, args.device, p_size)
+
+                q_n2 = beamforming(q_n, A, q_shape)
+                q_new = complex2float(q_n2, args.device, q_size)
+
+                p, q = sca_global(p,q, p_new,q_new, eta)
+                grad_truth = FedAvg(grad_locals)
+                grad_glob= sca_sgd(p, q, grad_truth)
             
 
         for k in w_glob.keys():
