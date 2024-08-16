@@ -19,7 +19,7 @@ def sparse_k(grad, C, R, mode, timer):
         idx += 1
         tensor_shape = tensor.shape
         array = tensor.flatten()
-        total = int((array.shape[0] - int(array.shape[0] * C))/2)
+        total = (array.shape[0] - int(array.shape[0] * C/2))
         if mode == "topk":
             array_abs = torch.abs(array)
             array_zero_idx = torch.argsort(array_abs)[:total]
