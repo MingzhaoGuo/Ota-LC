@@ -9,6 +9,8 @@ EXP_MIN = -30
 def sparse_k(grad, C, R, mode, timer):
     topk_grads = copy.deepcopy(grad)
     compressed_grad = []
+    indices_sparse = []
+    grad_shape = []
     res = []
     idx = 0
     for k in topk_grads.keys():
@@ -16,23 +18,35 @@ def sparse_k(grad, C, R, mode, timer):
             continue
         start = time.process_time()
         tensor = topk_grads[k] 
-        idx += 1
+        
         tensor_shape = tensor.shape
         array = tensor.flatten()
-        total = (array.shape[0] - int(array.shape[0] * C/2))
+        total = math.ceil(array.shape[0] * C/2)
+        grad_shape.append(array.nelement())
         if mode == "topk":
             array_abs = torch.abs(array)
-            array_zero_idx = torch.argsort(array_abs)[:total]
+            indices = torch.argsort(array_abs)[total+1:]
+            values = array[indices]
         elif mode == "randk":
-            array_zero_idx = torch.randperm(array.shape[0])[:total]
-        array[array_zero_idx] = 0
-        topk_tensor = array.reshape(tensor_shape)
-        res.append(tensor - topk_tensor)
-        matrix = topk_tensor.view(tensor.shape[0],-1) 
-        compressed_grad.append(matrix) 
+            indices = torch.randperm(array.shape[0])[:total]
+            values = array[indices]
+        signal_tensor = values.unsqueeze(1)
+        #res.append(tensor - topk_tensor)
+        compressed_grad.append(signal_tensor) 
+        indices_sparse.append(indices)
         end = time.process_time()
         timer += end - start
-    return compressed_grad, res, timer
+        idx += 1
+    return compressed_grad,res, indices_sparse, grad_shape ,  timer
+
+def de_sparse_k(g_new, index, g_shape, device):
+    g_recover = []
+    for idx, g in enumerate(g_new):
+        m = g_shape[idx]
+        g_ = torch.zeros(m).to(device)
+        g_[index[idx]] = g_new[idx].squeeze()
+        g_recover.append(g_)
+    return g_recover
 
 def sparse_sgd(g_new, grads):
     i = 0
@@ -43,7 +57,6 @@ def sparse_sgd(g_new, grads):
             continue
         
         y = g_new[i].view(tensor.shape)
-        matrix = (tensor).view(tensor.shape[0],-1)
         grad[k] = copy.deepcopy(y)
         
         i += 1

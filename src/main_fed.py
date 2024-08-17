@@ -14,8 +14,8 @@ from models.Update import LocalUpdate
 from models.Nets import MLP, CNNMnist, CNNCifar,  CNNCifarResNet
 from utils.averaging import FedAvg
 from utils.compressor import initial_S, partial_DFT, turbo_cs, all_reduce, \
-    all_sum, sparse_k, sparse_sgd, powersgd_update_P, powersgd_update_Q, orthogonalize
-from utils.mimo import estimate_H, beamforming_init, transmit, beamforming
+    all_sum, sparse_k, sparse_sgd, powersgd_update_P, powersgd_update_Q, orthogonalize, de_sparse_k
+from utils.mimo import estimate_H, beamforming_init, transmit, beamforming,transmit_AWGN
 from utils.blue import blue_transmit, blue_estimate
 from utils.rlc import init_A, RLC, RLCR
 from utils.lc import sca_sgd, sca_sgd_update_P_Q, error_feedback_update, \
@@ -174,7 +174,7 @@ if __name__ == '__main__':
         else:
             if (args.mode == "ota_lc" or args.mode == "ota_powersgd" or args.mode == "ota_lc_NEF") and iter==warm_up+1:
                 p, q, eta = init_q_power(grad_glob, args.C, args.device)
-            
+
             if args.mode == "ota_cs":
                 H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
                 
@@ -350,7 +350,6 @@ if __name__ == '__main__':
             elif args.mode == "topk":
                 H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
 
-                A, B  = beamforming_init(H, args.device, 1,grad_glob, args.dimension)
                 compressed_grad = []
                 sigma = []
                 sigma_S = []
@@ -369,13 +368,13 @@ if __name__ == '__main__':
                     local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx])
                     grad,  loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
                     grad_locals.append(copy.deepcopy(grad))
-                    g_k, res_k, timer = sparse_k(grad, args.C ,error_feedback[idx], "topk", timer)
-                    g_k, g_size = float2complex(g_k, args.device)
-                    s_k,shape_s = transmit(g_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
-                    s_recieve = beamforming(s_k, A, shape_s)
-                    g_new = complex2float(s_recieve, args.device, g_size)
+                    g_k, res_k, indices_sparse, grad_shape, timer = sparse_k(grad, args.C ,error_feedback[idx], "topk", timer)
+                    #g_k, g_size = float2complex(g_k, args.device)
+                    #s_k,shape_s = transmit_AWGN(g_k, H, cur_idx, args.Nt, args.SNRdB, args.device)
+                    #g_new = complex2float(s_k, args.device, g_size)
+                    g_new = de_sparse_k(g_k, indices_sparse, grad_shape, args.device)
                     compressed_grad.append(g_new)
-                    error_feedback[idx] = res_k
+                    # error_feedback[idx] = res_k
                     loss_locals.append(copy.deepcopy(loss))
                 Y = all_reduce(compressed_grad)
                 grad_truth = FedAvg(grad_locals)
@@ -384,7 +383,6 @@ if __name__ == '__main__':
             elif args.mode == "randk":
                 H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
 
-                A, B  = beamforming_init(H, args.device, 1,grad_glob, args.dimension)
                 compressed_grad = []
                 sigma = []
                 sigma_S = []
@@ -403,13 +401,13 @@ if __name__ == '__main__':
                     local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx])
                     grad,  loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
                     grad_locals.append(copy.deepcopy(grad))
-                    g_k, res_k, timer = sparse_k(grad, args.C ,error_feedback[idx], "randk", timer)
-                    g_k, g_size = float2complex(g_k, args.device)
-                    s_k,shape_s = transmit(g_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
-                    s_recieve = beamforming(s_k, A, shape_s)
-                    g_new = complex2float(s_recieve, args.device, g_size)
+                    g_k, res_k, indices_sparse, g_shape, timer = sparse_k(grad, args.C ,error_feedback[idx], "randk", timer)
+                    #g_k, g_size = float2complex(g_k, args.device)
+                    #s_k,shape_s = transmit_AWGN(g_k, H, cur_idx, args.Nt, args.SNRdB, args.device)
+                    #g_new = complex2float(s_k, args.device, g_size)
+                    g_new = de_sparse_k(g_k, indices_sparse, g_shape, args.device)
                     compressed_grad.append(g_new)
-                    error_feedback[idx] = res_k
+                    #error_feedback[idx] = res_k
                     loss_locals.append(copy.deepcopy(loss))
                 Y = all_reduce(compressed_grad)
                 grad_truth = FedAvg(grad_locals)

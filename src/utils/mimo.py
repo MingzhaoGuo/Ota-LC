@@ -84,6 +84,34 @@ def transmit(signal, B, H, idx, dimension, SNR, device):
         signal[i] += noise
 
     return signal, shape
+
+def transmit_AWGN(signal, H, idx, dimension, SNR, device):
+    shape = []
+    sigma = []
+    sigma_n = 10**(int(-SNR/10))
+    for (s,i) in zip(signal, range(len(signal))):
+        shape.append(s.shape)
+        a, b = s.shape
+        d = math.ceil(a*b/dimension)
+        s = s.resize_(dimension,d)
+
+        transmit_signal =  s
+
+        signal[i] =  copy.deepcopy(transmit_signal)
+        
+        P_signal = (torch.norm(transmit_signal)**2)/(a*b)
+        # P_db = 10 * torch.log10(P_signal)
+        
+        # noise_db = P_db - SNR
+        # P_signal = 1
+        P_noise  = P_signal*sigma_n
+        # P_noise = 10 ** (noise_db/10)
+
+        noise = math.sqrt(P_noise)*torch.randn_like(signal[i], dtype = torch.complex64).to(device)
+
+        # signal[i] += noise
+
+    return signal, shape
     
 def beamforming(signal, A, Shape):
     for (s,i) in zip(signal, range(len(signal))):
