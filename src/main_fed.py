@@ -374,7 +374,7 @@ if __name__ == '__main__':
                     #g_new = complex2float(s_k, args.device, g_size)
                     g_new = de_sparse_k(s_k, indices_sparse, grad_shape, args.device)
                     compressed_grad.append(g_new)
-                    error_feedback[idx] = res_k
+                    # error_feedback[idx] = res_k
                     loss_locals.append(copy.deepcopy(loss))
                 Y = all_reduce(compressed_grad)
                 grad_truth = FedAvg(grad_locals)
