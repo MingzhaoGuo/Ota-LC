@@ -372,9 +372,9 @@ if __name__ == '__main__':
                     #g_k, g_size = float2complex(g_k, args.device)
                     s_k,shape_s = transmit_AWGN(g_k, H, cur_idx, args.Nt, args.SNRdB, args.device)
                     #g_new = complex2float(s_k, args.device, g_size)
-                    g_new = de_sparse_k(g_k, indices_sparse, grad_shape, args.device)
+                    g_new = de_sparse_k(s_k, indices_sparse, grad_shape, args.device)
                     compressed_grad.append(g_new)
-                    # error_feedback[idx] = res_k
+                    error_feedback[idx] = res_k
                     loss_locals.append(copy.deepcopy(loss))
                 Y = all_reduce(compressed_grad)
                 grad_truth = FedAvg(grad_locals)
@@ -405,9 +405,9 @@ if __name__ == '__main__':
                     #g_k, g_size = float2complex(g_k, args.device)
                     s_k,shape_s = transmit_AWGN(g_k, H, cur_idx, args.Nt, args.SNRdB, args.device)
                     #g_new = complex2float(s_k, args.device, g_size)
-                    g_new = de_sparse_k(g_k, indices_sparse, g_shape, args.device)
+                    g_new = de_sparse_k(s_k, indices_sparse, g_shape, args.device)
                     compressed_grad.append(g_new)
-                    #error_feedback[idx] = res_k
+                    error_feedback[idx] = res_k
                     loss_locals.append(copy.deepcopy(loss))
                 Y = all_reduce(compressed_grad)
                 grad_truth = FedAvg(grad_locals)
