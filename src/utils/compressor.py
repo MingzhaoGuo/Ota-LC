@@ -21,18 +21,18 @@ def sparse_k(grad, C, R, mode, timer):
         
         tensor_shape = tensor.shape
         array = tensor.flatten()
-        total = math.ceil(array.shape[0] * C/2)
+        total = array.shape[0] - math.ceil(array.shape[0] * C/2)
         grad_shape.append(array.nelement())
         if mode == "topk":
             array_abs = torch.abs(array)
             indices = torch.argsort(array_abs)[total+1:]
             values = array[indices]
         elif mode == "randk":
-            indices = torch.randperm(array.shape[0])[:total]
+            indices = torch.randperm(array.shape[0])[total+1:]
             values = array[indices]
-        signal_tensor = values.unsqueeze(1)
+        # signal_tensor = values.unsqueeze(1)
         #res.append(tensor - topk_tensor)
-        compressed_grad.append(signal_tensor) 
+        compressed_grad.append(values) 
         indices_sparse.append(indices)
         end = time.process_time()
         timer += end - start
@@ -44,7 +44,7 @@ def de_sparse_k(g_new, index, g_shape, device):
     for idx, g in enumerate(g_new):
         m = g_shape[idx]
         g_ = torch.zeros(m).to(device)
-        g_[index[idx]] = g_new[idx].squeeze()
+        g_[index[idx]] = g_new[idx]
         g_recover.append(g_)
     return g_recover
 
