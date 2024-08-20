@@ -91,20 +91,20 @@ def transmit_AWGN(signal, H, idx, dimension, SNR, device):
     sigma_n = 10**(int(-SNR/10))
     for (s,i) in zip(signal, range(len(signal))):
         shape.append(s.shape)
-        # a, b = s.shape
-        # d = math.ceil(s.nelement()/dimension)
-        # s = s.resize_(dimension,d)
+        d = math.ceil(s.nelement()/dimension)
+        s = s.resize_(dimension,d)
 
         transmit_signal =  s
 
-        # signal[i] =  torch.pinverse(copy.deepcopy(H[idx])) @ copy.deepcopy(H[idx]) @ copy.deepcopy(transmit_signal)
+        # s_ =   copy.deepcopy(transmit_signal)
         signal[i] =  copy.deepcopy(transmit_signal)
         
         P_signal = (torch.norm(transmit_signal)**2)/(s.nelement())
         # P_db = 10 * torch.log10(P_signal)
         P_noise  = P_signal*sigma_n
-        noise = math.sqrt(P_noise)*torch.randn_like(signal[i]).to(device)
+        noise = math.sqrt(P_noise)*torch.randn_like(signal[i], dtype = torch.complex64).to(device)
         signal[i] += noise
+        signal[i].reshape(s.shape)
 
     return signal, shape
     

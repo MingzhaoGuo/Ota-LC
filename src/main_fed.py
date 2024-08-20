@@ -101,15 +101,22 @@ if __name__ == '__main__':
             dict_users = non_iid(dataset_train, args.num_users, args.num_classes)
     elif args.dataset == 'cifar100':
         args.num_classes = 100
-        transform = transforms.Compose([transforms.ToTensor()])
-        dataset_test = datasets.CIFAR100('../data/cifar100', train=False, download=True, transform= transform)
-        dataset_train = datasets.CIFAR100('../data/cifar100', train=True, download=True, transform=transform)
+        trans_cifar_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        trans_cifar_test = transforms.Compose([transforms.ToTensor(),transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)) ])
+
+        dataset_test = datasets.CIFAR100('../data/cifar100', train=False, download=True, transform= trans_cifar_test)
+        dataset_train = datasets.CIFAR100('../data/cifar100', train=True, download=True, transform=trans_cifar_train)
         if args.iid:
             dict_users = iid(dataset_train, args.num_users)
         else:
             dict_users = non_iid(dataset_train, args.num_users, args.num_classes)
     elif args.dataset == 'emnist':
-        args.num_classes = 26
+        args.num_classes = 62
         transform = transforms.Compose([transforms.ToTensor()])
         dataset_train = datasets.EMNIST('../data/emnist',split='letters',train=True, download=True, transform=transform)
         dataset_test = datasets.EMNIST('../data/emnist',split='letters',train=False, download=True, transform=transform)
@@ -369,10 +376,10 @@ if __name__ == '__main__':
                     grad,  loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
                     grad_locals.append(copy.deepcopy(grad))
                     g_k, res_k, indices_sparse, grad_shape, timer = sparse_k(grad, args.C ,error_feedback[idx], "topk", timer)
-                    #g_k, g_size = float2complex(g_k, args.device)
+                    g_k, g_size = float2complex(g_k, args.device)
                     s_k,shape_s = transmit_AWGN(g_k, H, cur_idx, args.Nt, args.SNRdB, args.device)
-                    #g_new = complex2float(s_k, args.device, g_size)
-                    g_new = de_sparse_k(s_k, indices_sparse, grad_shape, args.device)
+                    g_new = complex2float(s_k, args.device, g_size)
+                    g_new = de_sparse_k(g_new, indices_sparse, grad_shape, args.device)
                     compressed_grad.append(g_new)
                     # error_feedback[idx] = res_k
                     loss_locals.append(copy.deepcopy(loss))
