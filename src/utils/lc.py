@@ -126,7 +126,7 @@ def init_q_power(grad, rank, device):
         matrix = tensor.view(tensor.shape[0],-1)
         n,m = matrix.shape
         if min(m,n) < r:
-            r_ = min(m,n) - 1
+            r_ = min(m,n) 
             SVD = torch.linalg.svd(matrix)
             init_p = SVD.U[:, :r_]
             init_q = torch.t(torch.diag_embed(SVD.S[:r_]) @ SVD.Vh[:r_,:])

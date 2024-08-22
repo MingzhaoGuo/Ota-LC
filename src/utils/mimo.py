@@ -64,7 +64,7 @@ def transmit(signal, B, H, idx, dimension, SNR, device):
     for (s,i) in zip(signal, range(len(signal))):
         shape.append(s.shape)
         a, b = s.shape
-        d = math.ceil(a*b/dimension)
+        d = math.floor(a*b/dimension)
         s = s.resize_(dimension,d)
 
         transmit_signal = B[i][idx] @ s

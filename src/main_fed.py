@@ -30,7 +30,7 @@ import logging
 
 logger = logging.getLogger('train')
 logger.setLevel(logging.DEBUG)
-warm_up = 1
+warm_up = 4
 
 log_path = './logger/'
 if not os.path.exists(log_path):
@@ -103,11 +103,11 @@ if __name__ == '__main__':
         args.num_classes = 100
         trans_cifar_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
+            transforms.RandomHorizontalFlip(p = 0.5),
+            transforms.RandomVerticalFlip(p=0.5),
             transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
-        trans_cifar_test = transforms.Compose([transforms.ToTensor(),transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)) ])
+        trans_cifar_test = transforms.Compose([transforms.ToTensor()])
 
         dataset_test = datasets.CIFAR100('../data/cifar100', train=False, download=True, transform= trans_cifar_test)
         dataset_train = datasets.CIFAR100('../data/cifar100', train=True, download=True, transform=trans_cifar_train)
@@ -409,10 +409,10 @@ if __name__ == '__main__':
                     grad,  loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
                     grad_locals.append(copy.deepcopy(grad))
                     g_k, res_k, indices_sparse, g_shape, timer = sparse_k(grad, args.C ,error_feedback[idx], "randk", timer)
-                    #g_k, g_size = float2complex(g_k, args.device)
+                    g_k, g_size = float2complex(g_k, args.device)
                     s_k,shape_s = transmit_AWGN(g_k, H, cur_idx, args.Nt, args.SNRdB, args.device)
-                    #g_new = complex2float(s_k, args.device, g_size)
-                    g_new = de_sparse_k(s_k, indices_sparse, g_shape, args.device)
+                    g_new = complex2float(s_k, args.device, g_size)
+                    g_new = de_sparse_k(g_new, indices_sparse, g_shape, args.device)
                     compressed_grad.append(g_new)
                     error_feedback[idx] = res_k
                     loss_locals.append(copy.deepcopy(loss))
