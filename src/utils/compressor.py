@@ -20,7 +20,7 @@ def sparse_k(grad, C, R, mode, timer):
         tensor = topk_grads[k] 
         
         tensor_shape = tensor.shape
-        array = (tensor).flatten()
+        array = (tensor + R[idx]).flatten()
         total = array.shape[0] - math.ceil(array.shape[0] * C)
         grad_shape.append(array.nelement())
         if mode == "topk":
@@ -33,9 +33,9 @@ def sparse_k(grad, C, R, mode, timer):
             zero_indices = torch.randperm(array.shape[0])[:total]
             values = array[indices]
         signal_tensor = values.unsqueeze(1)
-        # array[zero_indices] = 0
-        # sparse_tensor = array.reshape(tensor_shape)
-        # res.append(tensor - sparse_tensor)
+        array[zero_indices] = 0
+        sparse_tensor = array.reshape(tensor_shape)
+        res.append(tensor - sparse_tensor)
         compressed_grad.append(signal_tensor) 
         indices_sparse.append(indices)
         end = time.process_time()

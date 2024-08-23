@@ -30,7 +30,7 @@ import logging
 
 logger = logging.getLogger('train')
 logger.setLevel(logging.DEBUG)
-warm_up = 4
+warm_up = 5
 
 log_path = './logger/'
 if not os.path.exists(log_path):
