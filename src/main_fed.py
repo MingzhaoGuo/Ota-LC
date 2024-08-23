@@ -14,7 +14,7 @@ from models.Update import LocalUpdate
 from models.Nets import MLP, CNNMnist, CNNCifar,  CNNCifarResNet
 from utils.averaging import FedAvg
 from utils.compressor import initial_S, partial_DFT, turbo_cs, all_reduce, \
-    all_sum, sparse_k, sparse_sgd, powersgd_update_P, powersgd_update_Q, orthogonalize, de_sparse_k
+    all_sum, sparse_k, sparse_sgd, powersgd_update_P, powersgd_update_Q, orthogonalize, de_sparse_k, quantization, find_minmax
 from utils.mimo import estimate_H, beamforming_init, transmit, beamforming,transmit_AWGN
 from utils.blue import blue_transmit, blue_estimate
 from utils.rlc import init_A, RLC, RLCR
@@ -30,7 +30,7 @@ import logging
 
 logger = logging.getLogger('train')
 logger.setLevel(logging.DEBUG)
-warm_up = 5
+warm_up = 1
 
 log_path = './logger/'
 if not os.path.exists(log_path):
@@ -181,6 +181,8 @@ if __name__ == '__main__':
         else:
             if (args.mode == "ota_lc" or args.mode == "ota_powersgd" or args.mode == "ota_lc_NEF") and iter==warm_up+1:
                 p, q, eta = init_q_power(grad_glob, args.C, args.device)
+            if (args.mode == "ota_qsgd" and iter == warm_up+1):
+                layer_max, layer_min = find_minmax(grad_glob)
 
             if args.mode == "ota_cs":
                 H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
@@ -474,12 +476,36 @@ if __name__ == '__main__':
                 for (idx,cur_idx) in zip(idxs_users,range(m)):
                    error_feedback[idx] = error_feedback_update(q, p ,grad_locals[cur_idx], args.num_users)
 
-            elif args.mode == "ota_signsgd":
-                # TODO add the code for  signsgd compression
-                pass
             elif args.mode == "ota_qsgd":
-                # TODO add the code for the qsgd compression
-                pass
+                H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
+                A, B  = beamforming_init(H, args.device, 1,grad_glob, args.dimension)
+                compressed_grad = []
+                if iter == warm_up+1:
+                    error_feedback = []
+                    for usr in range((args.num_users)):
+                        res_k = []
+                        for temp_l in grad_glob.keys():
+                            if grad_glob[temp_l].ndimension() <= 1:
+                                continue
+                            res_k_l = torch.zeros_like(grad_glob[temp_l]).to(args.device)
+                            res_k.append(res_k_l)
+                        error_feedback.append(res_k)
+                timer = 0
+                for (idx,cur_idx) in zip(idxs_users,range(m)):
+                    local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx])
+                    grad, loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
+                    grad_locals.append(copy.deepcopy(grad))
+                    loss_locals.append(copy.deepcopy(loss))
+                    g_k, error_feedback[idx], timer = quantization(grad, args.C, error_feedback[idx], layer_max, layer_min,timer)
+                    g_k, g_size = float2complex(g_k, args.device)
+                    g_k, g_shape = transmit(g_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
+                    compressed_grad.append(g_k)
+                g = all_reduce(compressed_grad)
+                grad_truth = FedAvg(grad_locals)
+                g_new = beamforming(g, A, g_shape)
+                g_new = complex2float(g_new, args.device, g_size)
+                grad_glob = sparse_sgd(g_new, grad_truth)
+                layer_max, layer_min = find_minmax(grad_truth)
             elif args.mode == "ota_lc_NEF":
                 H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
                 A, B  = beamforming_init(H, args.device, 5, grad_glob, args.Nt)

@@ -5,6 +5,51 @@ import time
 
 EXP_MAX = 30
 EXP_MIN = -30
+BITS = 16
+
+def quantization(grad, C, R, max, min, timer):
+    grads = copy.deepcopy(grad)
+    quant_grad = []
+    bit = math.ceil(BITS * C)
+    
+    n_interval = 2**bit
+    res = []
+    idx = 0
+    for k in grads.keys():
+        if grads[k].ndimension() <= 1:
+            continue
+        start = time.process_time()
+        tensor = grads[k] + R[idx]
+        total_interval = max[idx] - min[idx]
+        interval = total_interval / n_interval
+
+        max_ = torch.ones_like(tensor) * max[idx]
+        min_ = torch.ones_like(tensor) * min[idx]
+        tensor_ = torch.where(tensor>max[idx], max_, tensor)
+        tensor_ = torch.where(tensor<min[idx], min_, tensor_)
+        q_gradient = min[idx] + (tensor_ - min[idx]) // interval * interval
+
+        res.append(tensor - q_gradient)
+        end = time.process_time()
+        timer += end - start
+        q_matrix = q_gradient.view(q_gradient.shape[0], -1)
+        quant_grad.append(q_matrix)
+        idx += 1
+    return quant_grad, res, timer
+
+def find_minmax(grad):
+    min = []
+    max = []
+    for k in grad.keys():
+        if grad[k].ndimension()<= 1:
+            continue
+        max_l = torch.max(grad[k])
+        min_l = torch.min(grad[k])
+        max.append(max_l)
+        min.append(min_l)
+    return max, min
+
+
 
 def sparse_k(grad, C, R, mode, timer):
     topk_grads = copy.deepcopy(grad)
@@ -64,7 +109,6 @@ def sparse_sgd(g_new, grads):
         grad[k] = copy.deepcopy(y)
         
         i += 1
-        
         
     return grad
 
