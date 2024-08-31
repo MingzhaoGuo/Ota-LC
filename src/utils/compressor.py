@@ -15,6 +15,7 @@ def quantization(grad, C, R, max, min, timer):
     n_interval = 2**bit
     res = []
     idx = 0
+    intervals = []
     for k in grads.keys():
         if grads[k].ndimension() <= 1:
             continue
@@ -27,15 +28,29 @@ def quantization(grad, C, R, max, min, timer):
         min_ = torch.ones_like(tensor) * min[idx]
         tensor_ = torch.where(tensor>max[idx], max_, tensor)
         tensor_ = torch.where(tensor<min[idx], min_, tensor_)
-        q_gradient = min[idx] + (tensor_ - min[idx]) // interval * interval
-
+        q_signal = torch.div((tensor_ - min[idx]), interval, rounding_mode='floor')
+        q_gradient = min[idx] + q_signal * interval
         res.append(tensor - q_gradient)
         end = time.process_time()
         timer += end - start
-        q_matrix = q_gradient.view(q_gradient.shape[0], -1)
+        q_matrix = q_signal.view(q_signal.shape[0], -1)
         quant_grad.append(q_matrix)
+        intervals.append(interval)
         idx += 1
-    return quant_grad, res, timer
+    return quant_grad, res, intervals, timer
+
+def qsgd(g_new, grads, min, intervals):
+    i = 0
+    grad = copy.deepcopy(grads)
+    for k in grads.keys():
+        tensor = grads[k]
+        if tensor.ndimension()<=1:
+            continue
+        y = g_new[i].view(tensor.shape)
+        y = min[i] + y * intervals[i]
+        grad[k] = copy.deepcopy(y)
+        i += 1
+    return grad
 
 def find_minmax(grad):
     min = []

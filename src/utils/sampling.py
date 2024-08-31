@@ -79,7 +79,7 @@ def non_iid(dataset, num_users, classes_size, alpha = 0.9):
 
     train_labels = np.array(dataset.targets)
     label_distribution = np.random.dirichlet([alpha]*num_users, classes_size)
- 
+
     class_idcs = [np.argwhere(train_labels==y).flatten()
            for y in range(classes_size)]
 

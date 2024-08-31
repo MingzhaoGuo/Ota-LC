@@ -57,10 +57,9 @@ def beamforming_init(H, device, P0, grad,dimension):
         B.append(B_l)
     return A, B
 
-def transmit(signal, B, H, idx, dimension, SNR, device):
+def transmit_ota(signal, B, H, idx, dimension, SNR, device):
     shape = []
-    sigma = []
-    sigma_n = 10**(int(-SNR/10))
+    sigma_n = 10**(int(SNR/10))
     for (s,i) in zip(signal, range(len(signal))):
         shape.append(s.shape)
         a, b = s.shape
@@ -71,24 +70,16 @@ def transmit(signal, B, H, idx, dimension, SNR, device):
 
         signal[i] = copy.deepcopy(H[idx]) @ copy.deepcopy(transmit_signal)
         
-        P_signal = (torch.norm(transmit_signal)**2)/(a*b)
-        # P_db = 10 * torch.log10(P_signal)
-        
-        # noise_db = P_db - SNR
-        # P_signal = 1
-        P_noise  = P_signal*sigma_n
-        # P_noise = 10 ** (noise_db/10)
-
-        noise = math.sqrt(P_noise)*torch.randn_like(signal[i], dtype = torch.complex64).to(device)
+        P_noise  = math.sqrt(1 / (2 * sigma_n))
+        noise = P_noise*torch.randn_like(signal[i], dtype = torch.complex64).to(device)
 
         signal[i] += noise
 
     return signal, shape
 
-def transmit_AWGN(signal, H, idx, dimension, SNR, device):
+def digital_transmit(signal, H, idx, dimension, SNR, device):
     shape = []
-    sigma = []
-    sigma_n = 10**(int(-SNR/10))
+    sigma_n = 10**(int(SNR/10))
     for (s,i) in zip(signal, range(len(signal))):
         shape.append(s.shape)
         d = math.ceil(s.nelement()/dimension)
@@ -96,20 +87,98 @@ def transmit_AWGN(signal, H, idx, dimension, SNR, device):
 
         transmit_signal =  s
 
-        # s_ =   copy.deepcopy(transmit_signal)
-        signal[i] =  copy.deepcopy(transmit_signal)
-        
-        P_signal = (torch.norm(transmit_signal)**2)/(s.nelement())
-        # P_db = 10 * torch.log10(P_signal)
-        P_noise  = P_signal*sigma_n
-        noise = math.sqrt(P_noise)*torch.randn_like(signal[i], dtype = torch.complex64).to(device)
+        signal[i] =  copy.deepcopy(H[idx]) @ copy.deepcopy(transmit_signal)
+
+        P_noise  = math.sqrt(1 / (2 * sigma_n))
+        noise = P_noise*(torch.randn_like(signal[i]) + 1j * torch.randn_like(signal[i])).to(device)
         signal[i] += noise
         signal[i].reshape(s.shape)
 
     return signal, shape
+
+def receive(signal, H, bit_width=2):
+    channel_uses = 0
+    receive_signal = []
+    for (s_k, h) in zip(signal,H):
+        channel_uses = 0
+        receive_signal_k = []
+        for s in s_k:
+            channel_uses += s.shape[1]*bit_width
+            receive_signal_k.append(torch.pinverse(h) @ s)
+        receive_signal.append(receive_signal_k)
+    return receive_signal, channel_uses
+
+def float_to_bits(signal,  min_val, max_val, bit_width=2):
+    quantized_signal = []
+    for (s,i) in zip(signal, range(len(signal))):
+        quantized = torch.round((s - min_val[i]) / (max_val[i] - min_val[i]) * (2**bit_width - 1))
+        quantized_signal.append(quantized)
+    return quantized_signal
+
+def bits_to_float(bits,  min_val, max_val, bit_width=2):
+    float_signal = []
+    for (s,i) in zip(bits, range(len(bits))):
+        float_i = (s / (2**bit_width - 1)) * (max_val[i] - min_val[i]) + min_val[i]
+        float_signal.append(float_i)
+    return float_signal
+
+
+def qam4_modulation(quantized_signal,device):
+    symbol_map = {
+        (0, 0): -1-1j,
+        (0, 1): -1+1j,
+        (1, 0): 1-1j,
+        (1, 1): 1+1j
+    }
+    size = [] 
+    modulated_signal = []
+    for s in quantized_signal:
+        size.append(s.shape)
+        n,l = s.shape
+        print(s)
+        if (n%2 == 1):
+            n += 1
+            s.resize_(n,l)
+            s[-1,:]= 0
+        bits = quantized_values.unsqueeze(-1).long()
+        bits = ((bits >> torch.arange(bit_width).to(bits.device)) & 1).view(-1, bit_width)
+        reshaped_bits = s.view(-1, 2)
+        symbols = []
+        for b in reshaped_bits:
+            bit_pair = (b[0].item(), b[1].item()) 
+            symbols.append(symbol_map[bit_pair])
+        symbols = torch.tensor(symbols, dtype=torch.cfloat).to(device)
+        modulated_signal.append(symbols)
+    return modulated_signal, size
+
+def qam4_demodulation(received_symbols,shape, device):
+    symbol_map = {
+        -1-1j: (0, 0),
+        -1+1j: (0, 1),
+        1-1j: (1, 0),
+        1+1j: (1, 1)
+    }
+    demod_bits = []
+    for (s_k,shape_k) in zip(received_symbols,shape):
+        demod_bits_k = []
+        for (s_k_l, i) in zip(s_k,range(len(s_k))):
+            demod_bits_k_l = []
+            for symbol in s_k_l:
+                distances = {k: torch.abs(symbol - k) for k in symbol_map}
+                closest_symbol = min(distances, key=distances.get)
+                demod_bits_k_l.extend(symbol_map[closest_symbol])
+            demod_k_l = torch.tensor(demod_bits_k).resize_(shape_k[i]).to(device)
+            demod_bits_k.append(demod_k_l)
+        demod_bits.append(demod_bits_k)
+    return demod_bits
+
+
+
     
 def beamforming(signal, A, Shape):
+    channel_uses = 0;
     for (s,i) in zip(signal, range(len(signal))):
         s = (torch.t(A[i]) @ s)
+        channel_uses += s.shape[1]
         signal[i] = s.resize_(Shape[i])
-    return signal
+    return signal, channel_uses

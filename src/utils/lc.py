@@ -179,7 +179,15 @@ def complex2float(signal, device, size):
         float_signal.append(x)
     return float_signal
 
-
+def find_minmax_power(p):
+    min = []
+    max = []
+    for k in p:
+        max_l = torch.max(k)
+        min_l = torch.min(k)
+        max.append(max_l)
+        min.append(min_l)
+    return max, min
 
 
 
