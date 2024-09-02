@@ -7,10 +7,9 @@ EXP_MAX = 30
 EXP_MIN = -30
 BITS = 16
 
-def quantization(grad, C, R, max, min, timer):
+def quantization(grad, bit, R, max, min, timer):
     grads = copy.deepcopy(grad)
     quant_grad = []
-    bit = math.ceil(BITS * C)
     
     n_interval = 2**bit
     res = []

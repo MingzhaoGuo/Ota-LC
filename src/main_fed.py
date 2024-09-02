@@ -15,7 +15,7 @@ from models.Nets import MLP, CNNMnist, CNNCifar,  CNNCifarResNet
 from utils.averaging import FedAvg
 from utils.compressor import initial_S, partial_DFT, turbo_cs, all_reduce, \
     all_sum, sparse_k, sparse_sgd, powersgd_update_P, powersgd_update_Q, orthogonalize, de_sparse_k, quantization, find_minmax, qsgd
-from utils.mimo import estimate_H, beamforming_init, beamforming, transmit_ota, digital_transmit, receive, float_to_bits, bits_to_float, qam4_modulation, qam4_demodulation
+from utils.mimo import estimate_H, beamforming_init, beamforming, transmit_ota, digital_transmit, receive, float_to_bits, bits_to_float, qam4_modulation, qam4_demodulation, obtain_grad
 from utils.blue import blue_transmit, blue_estimate
 from utils.rlc import init_A, RLC, RLCR
 from utils.lc import sca_sgd, sca_sgd_update_P_Q, error_feedback_update, \
@@ -184,7 +184,7 @@ if __name__ == '__main__':
                 p, q, eta = init_q_power(grad_glob, args.C, args.device)
             if (iter == warm_up+1 and args.mode != "powersgd"):
                 layer_max, layer_min = find_minmax(grad_glob)
-            if (args.mode == "powersgd"):
+            if (iter == warm_up+1 and args.mode == "powersgd"):
                 p_max, p_min = find_minmax_power(p)
                 q_max, q_min = find_minmax_power(q)
 
@@ -590,9 +590,9 @@ if __name__ == '__main__':
                 p_max, p_min = find_minmax_power(P_t)
                 q_max, q_min = find_minmax_power(Q_t)
 
-            elif args.mode == "ota_qsgd":
+            elif args.mode == "signsgd":
                 H = estimate_H(args.Nr, args.Nt, grad_glob, m, args.device)
-                A, B  = beamforming_init(H, args.device, 1,grad_glob, args.dimension)
+                g_sizes = []
                 compressed_grad = []
                 if iter == warm_up+1:
                     error_feedback = []
@@ -610,14 +610,20 @@ if __name__ == '__main__':
                     grad, loss = local.train(net=copy.deepcopy(net_glob).to(args.device))
                     grad_locals.append(copy.deepcopy(grad))
                     loss_locals.append(copy.deepcopy(loss))
-                    g_k, error_feedback[idx], intervals, timer = quantization(grad, args.C, error_feedback[idx], layer_max, layer_min,timer)
+                    g_k, error_feedback[idx], intervals, timer = quantization(grad, 2, error_feedback[idx], layer_max, layer_min,timer)
                     g_k, g_size = float2complex(g_k, args.device)
-                    g_k, g_shape = transmit_ota(g_k, B, H, cur_idx, args.Nt, args.SNRdB, args.device)
+                    g_sizes.append(g_size)
+                    g_k, g_shape = digital_transmit(g_k, H, cur_idx, args.Nt, args.SNRdB, args.device)
                     compressed_grad.append(g_k)
-                g = all_reduce(compressed_grad)
+
+                s_receive,channel_use =receive(compressed_grad, H,bit_width=2)
+                channel_uses += channel_use
+                globe_grad = []
+                for idx in range(m):
+                    g_new = complex2float(s_receive[idx], args.device, g_sizes[idx])
+                    globe_grad.append(g_new)
+                g_new = all_reduce(globe_grad)
                 grad_truth = FedAvg(grad_locals)
-                g_new = beamforming(g, A, g_shape)
-                g_new = complex2float(g_new, args.device, g_size)
                 grad_glob = qsgd(g_new, grad_truth,layer_min,intervals)
                 layer_max, layer_min = find_minmax(grad_truth)
             elif args.mode == "ota_lc_NEF":

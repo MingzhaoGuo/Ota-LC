@@ -123,7 +123,7 @@ def bits_to_float(bits,  min_val, max_val, bit_width=2):
     return float_signal
 
 
-def qam4_modulation(quantized_signal,device):
+def qam4_modulation(quantized_signal,device,bit_width = 2):
     symbol_map = {
         (0, 0): -1-1j,
         (0, 1): -1+1j,
@@ -140,7 +140,7 @@ def qam4_modulation(quantized_signal,device):
             n += 1
             s.resize_(n,l)
             s[-1,:]= 0
-        bits = quantized_values.unsqueeze(-1).long()
+        bits = s.unsqueeze(-1).long()
         bits = ((bits >> torch.arange(bit_width).to(bits.device)) & 1).view(-1, bit_width)
         reshaped_bits = s.view(-1, 2)
         symbols = []
@@ -182,3 +182,13 @@ def beamforming(signal, A, Shape):
         channel_uses += s.shape[1]
         signal[i] = s.resize_(Shape[i])
     return signal, channel_uses
+
+def obtain_grad(grads):
+    grad_signal = []
+    for k in grads.keys():
+        if grads[k].ndimension() <= 1:
+            continue
+        tensor = grads[k]
+        matrix = tensor.view(tensor.shape[0], -1)
+        grad_signal.append(matrix)
+    return grad_signal
